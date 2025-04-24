@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,77 +6,170 @@
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
-    #chat { border: 1px solid #ddd; padding: 1rem; height: 300px; overflow-y: auto; }
     .msg { margin: 0.5rem 0; }
     .sender { font-weight: bold; margin-right: 0.5rem; }
+    #chatRoomList { margin-bottom: 1rem; }
+    #chatCustomer, #chatAgent {
+      border: 1px solid #ddd;
+      padding: 1rem;
+      height: 300px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
   <h2>🗨️ 상담 채팅</h2>
-<div>
-  <label>
-    닉네임:
-    <input id="sender" placeholder="고객 또는 상담사 이름" />
-  </label>
-</div>
-<div>
-  <label>
-    방 ID:
-    <input id="roomId" placeholder="room123" />
-  </label>
-  <button onclick="joinRoom()">입장</button>
-</div>
-  <div id="chat"></div>
-  <input id="message" placeholder="메시지를 입력하세요" />
-  <button onclick="sendMessage()">보내기</button>
+
+  <!-- 상담사와 고객 선택 화면 -->
+  <div id="roleSelection">
+    <h3>어떤 역할로 로그인하시겠습니까?</h3>
+    <button onclick="selectRole('customer')">고객</button>
+    <button onclick="selectRole('agent')">상담사</button>
+  </div>
+
+  <!-- 고객의 채팅창 -->
+  <div id="chatArea" style="display: none;">
+    <div>
+      <label>
+        닉네임:
+        <input id="sender" placeholder="고객 이름" />
+      </label>
+    </div>
+    <div id="chatCustomer"></div>
+    <input id="messageCustomer" placeholder="메시지를 입력하세요" />
+    <button onclick="sendMessage()">보내기</button>
+  </div>
+
+  <!-- 상담사 채팅창 -->
+  <div id="chatAgentArea" style="display: none;">
+    <div id="chatAgent"></div>
+    <input id="messageAgent" placeholder="메시지를 입력하세요" />
+    <button onclick="sendMessage()">보내기</button>
+  </div>
+
+  <!-- 상담사의 채팅방 목록 -->
+  <div id="agentRoomList" style="display: none;">
+    <h3>상담할 고객을 선택하세요:</h3>
+    <ul id="chatRoomList"></ul>
+  </div>
 
   <script>
-  const socket = io('http://localhost:3000');
-  const senderInput = document.getElementById('sender');
-  const roomIdInput = document.getElementById('roomId');
-  const messageInput = document.getElementById('message');
-  const chatBox = document.getElementById('chat');
+    const socket = io('http://localhost:3000');
+    const senderInput = document.getElementById('sender');
+    const messageCustomerInput = document.getElementById('messageCustomer');
+    const messageAgentInput = document.getElementById('messageAgent');
+    const chatRoomList = document.getElementById('chatRoomList');
+    let myRole = ''; // 'customer' or 'agent'
+    let myName = '';
+    let myRoomId = '';
 
-  let myName = '';
-
-  senderInput.addEventListener('input', () => {
-    myName = senderInput.value;
-  });
-
-  messageInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      if (event.shiftKey) {
-        return;
-      } else {
-        event.preventDefault();
-        sendMessage();
-      }
-    }
-  })
-
-  function joinRoom() {
-    const roomId = roomIdInput.value;
-    if (!roomId) return alert('방 ID를 입력하세요');
-    socket.emit('join_room', { roomId });
-    console.log(`[Client] 방 ${roomId}에 입장 요청`);
+  if (senderInput) {
+    senderInput.addEventListener('input', () => {
+        myName = senderInput.value;
+    });
   }
 
+  messageCustomerInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    if (event.shiftKey) {
+      return;
+    } else {
+      event.preventDefault();
+      sendMessage();
+    }
+  }
+});
+
+messageAgentInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    if (event.shiftKey) {
+      return;
+    } else {
+      event.preventDefault();
+      sendMessage();
+    }
+  }
+});
+
+    // 역할 선택
+    function selectRole(role) {
+      myRole = role;
+      if (role === 'customer') {
+        document.getElementById('roleSelection').style.display = 'none';
+        document.getElementById('chatArea').style.display = 'block';
+      } else if (role === 'agent') {
+        document.getElementById('roleSelection').style.display = 'none';
+        document.getElementById('agentRoomList').style.display = 'block';
+        // 상담사일 경우 연결된 고객 목록을 가져옴
+        socket.emit('get_connected_rooms');
+      }
+    }
+
+    function getChatBox() {
+        return myRole === 'agent'
+        ? document.getElementById('chatAgent')
+        : document.getElementById('chatCustomer')
+    }
+
+    // 고객이 방에 입장
+    function joinRoom() {
+      const roomId = client.id; 
+      myRoomId = roomId;
+      socket.emit('join_room', { roomId });
+      console.log(`[Client] 방 ${roomId}에 입장 요청`);
+    }
+
+    // 고객이 메시지 보내기
     function sendMessage() {
-      const sender = senderInput.value;
-      const message = messageInput.value;
-      const roomId = roomIdInput.value;
+      let sender = senderInput.value;
+      let message = messageCustomerInput.value;
+
+      if (myRole === 'agent') {
+        sender = '상담사';
+        message = messageAgentInput.value;
+      }  
+
       if (!sender || !message) return;
 
       socket.emit('send_message', {
         sender,
         message,
-        roomId
+        roomId: myRoomId
       });
 
-      messageInput.value = '';
+      if (myRole === 'customer') {
+        messageCustomerInput.value = '';
+      } else if (myRole === 'agent') {
+        messageAgentInput.value = '';
+  }
+    }
+
+    // 상담사에게 연결된 방 목록 보내기
+    socket.on('connected_rooms', (rooms) => {
+      chatRoomList.innerHTML = ''; // 기존 목록 초기화
+      rooms.forEach(room => {
+        const li = document.createElement('li');
+        li.textContent = `방 ID: ${room}`;
+        li.onclick = () => joinRoomAsAgent(room); // 상담사가 방을 선택할 때
+        chatRoomList.appendChild(li);
+      });
+    });
+
+    // 상담사가 방에 입장
+    function joinRoomAsAgent(roomId) {
+      socket.emit('join_room', { roomId });
+      myRoomId = roomId;
+      myName = '상담사';
+      console.log(`상담사가 방 ${roomId}에 입장`);
+
+      socket.emit("chat_history", {roomId});
+
+      document.getElementById('agentRoomList').style.display = 'none';
+      document.getElementById('chatAgentArea').style.display = 'block';
     }
 
     socket.on('receive_message', (data) => {
+      const chatBox = getChatBox();
       const div = document.createElement('div');
       div.className = 'msg';
 
@@ -113,16 +205,12 @@
     });
 
     socket.on('chat_history', (messages) => {
+      const chatBox = getChatBox();
       chatBox.innerHTML = ''; // 초기화
       messages.forEach(msg => {
         const div = document.createElement('div');
         const date = new Date(msg.sendAt || Date.now());
-
-        const timeString = `
-        ${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')} 
-        ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}
-        `;
-
+        const timeString = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')} ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}:${date.getSeconds().toString().padStart(2,'0')}`;
         div.className = 'msg';
         div.innerHTML = `
           <span class="sender">${msg.sender}</span>: ${msg.message}
@@ -134,3 +222,4 @@
   </script>
 </body>
 </html>
+
