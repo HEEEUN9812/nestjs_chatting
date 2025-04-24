@@ -1,4 +1,4 @@
-import { ConnectedSocket, MessageBody, SubscribeMessage, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
+import { ConnectedSocket, MessageBody, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { ChatService } from "src/chat/chat.service";
 
@@ -9,19 +9,12 @@ import { ChatService } from "src/chat/chat.service";
     credentials: true
   }
 })
-export class ChatGateway {
+export class ChatGateway implements OnGatewayDisconnect{
   @WebSocketServer() server: Server;
 
   constructor(private chatService: ChatService) {}
 
-  @SubscribeMessage('request_chat')
-  async handleChatRequest(@MessageBody() data: {userId: string}) {
-    const assignedAgent = await this.chatService.assignAgent(data.userId);
-    if(assignedAgent) {
-      const roomId = this.chatService.createRoom(data.userId, assignedAgent);
-      this.server.to(roomId).emit('chat_started', {roomId});
-    }
-  }
+  private userRoomMap = new Map<string, string>();
 
   @SubscribeMessage('send_message')
   async handleMessage(
@@ -30,6 +23,8 @@ export class ChatGateway {
   ) {
 
     const roomId = data.roomId ? data.roomId : client.id;
+
+    this.userRoomMap.set(client.id, roomId);
 
     const savedChat = await this.chatService.saveMessage(
       roomId,
@@ -63,7 +58,21 @@ export class ChatGateway {
     console.log(`Client connected: ${client.id}`);
   }
 
-  handleDisconnect(@ConnectedSocket() client: Socket) {
+  handleDisconnect(client: Socket) {
+    const roomId = this.userRoomMap.get(client.id);
     console.log(`Client disconnect: ${client.id}`);
+
+    if (client.id === roomId) {
+      console.log(`Client disconnect: ${client.id}`);
+      
+      this.server.to(roomId).emit('receive_message', {
+        sender: 'system',
+        message: '고객님이 채팅방을 나가 상담을 종료하겠습니다.',
+        sendAt: new Date(),
+        isSystem: true
+      });
+
+      this.userRoomMap.delete(client.id);
+    }
   }
  }
