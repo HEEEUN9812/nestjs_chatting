@@ -11,11 +11,9 @@ export class ChatService {
         private chatModel: Model<ChatMessageDocument>
     ) {}
 
-    private agentQueue: string[] = ['agent1', 'agent2'];
-    private roomMap = new Map<string, string>();
-
     async saveMessage(roomId: string, sender: string, message: string) {
         const sendAt = new Date();
+        const isConnected = true;
         const chat = await this.chatModel.findOneAndUpdate(
             {roomId},
             {
@@ -25,12 +23,15 @@ export class ChatService {
                         message,
                         sendAt
                     }
+                },
+                $set: {
+                    isConnected: true
                 }
             },
             {
                 new: true,
                 upsert: true
-            }
+            },
         );
 
         console.log(chat);
@@ -38,23 +39,24 @@ export class ChatService {
         return chat;
     }
 
+    async disconnectChat(roomId: string) {
+        await this.chatModel.updateOne(
+            {roomId},
+            {
+                $set: {
+                    isConnected: false
+                }
+            }
+        )
+    }
+
     async getMessagesByRoom(roomId: string) {
         const chat = await this.chatModel.findOne({roomId});
         return chat?.contents || [];
     }
 
-    assignAgent(userId: string): string | null {
-        const agent = this.agentQueue.shift();
-
-        if(agent) {
-            this.roomMap.set(userId, agent);
-            return agent;
-        }
-        return null;
-    }
-
-    createRoom(userId: string, agentId: string) :string {
-        const roomId = `${userId}-${agentId}`;
-        return roomId;
+    async getConnectedRooms() {
+        const chats = await this.chatModel.find({isConnected: true});
+        return chats.map(chat => chat.roomId);
     }
 }

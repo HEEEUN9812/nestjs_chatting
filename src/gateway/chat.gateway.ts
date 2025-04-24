@@ -54,6 +54,12 @@ export class ChatGateway implements OnGatewayDisconnect{
     }
   }
 
+  @SubscribeMessage('get_connected_rooms')
+  async handleGetConnectedRooms(@ConnectedSocket() client: Socket) {
+    const connectedRooms = await this.chatService.getConnectedRooms();
+    client.emit('connected_rooms', connectedRooms);
+  }
+
   handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
   }
@@ -71,6 +77,8 @@ export class ChatGateway implements OnGatewayDisconnect{
         sendAt: new Date(),
         isSystem: true
       });
+
+      this.chatService.disconnectChat(roomId);
 
       this.userRoomMap.delete(client.id);
     }

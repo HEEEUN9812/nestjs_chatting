@@ -24,6 +24,9 @@ export class ChatMessage {
         message: string;
         sendAt: Date;
     }
+
+    @Prop()
+    isConnected: boolean;
 }
 
 export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessage);
