@@ -9,7 +9,7 @@ import { ChatService } from "src/chat/chat.service";
     credentials: true
   }
 })
-export class ChatGateway implements OnGatewayDisconnect{
+export class ChatGateway{
   @WebSocketServer() server: Server;
 
   constructor(private chatService: ChatService) {}

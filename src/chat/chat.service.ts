@@ -56,7 +56,11 @@ export class ChatService {
     }
 
     async getConnectedRooms() {
-        const chats = await this.chatModel.find({isConnected: true});
-        return chats.map(chat => chat.roomId);
+        const chats = await this.chatModel.find({isConnected: true}).sort({createdAt: 1});
+        return chats.map(chat => ({
+            roomId: chat.roomId,
+            sender: chat.contents[0].sender,
+            createdAt: chat.createdAt 
+        }));
     }
 }
